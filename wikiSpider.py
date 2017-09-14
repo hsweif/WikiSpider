@@ -4,10 +4,12 @@ import chardet
 import time
 import re
 import sys
+import os
 from urllib2 import Request, urlopen, URLError, HTTPError
 from bs4 import BeautifulSoup
 reload(sys)
 sys.setdefaultencoding("utf-8")
+#coding 
 
 class WikiSpider:
     def __init__(self):
@@ -16,6 +18,7 @@ class WikiSpider:
         self.__opener.addheaders = [self.__headers]
         self.count = 0
         self.url_list = []
+        self.url_set = set([])
         self.content = '' 
     def openURL(self, url):
         #req = Request(url)
@@ -23,26 +26,60 @@ class WikiSpider:
         #response = urllib2.urlopen(req)
         #content = response.read()
         self.content = self.__opener.open(url).read()
-        encoding = chardet.detect(self.content)['encoding']
-        self.content = self.content.decode(encoding, 'ignore')
+        #encoding = chardet.detect(self.content)['encoding']
+        #self.content = self.content.decode(encoding, 'ignore')
         #return content
     def addURL(self, url):
         self.url_list.append(url)
     def getInfo(self):
-        soup = BeautifulSoup(self.content, "html.parser")
-        info_list = str(soup.find_all('table', class_ = 'infobox biography vcard'))
-        self.count = self.count + 1
-        # Classify info:
-        classfied_info = ''
-        infobox_soup = BeautifulSoup(info_list, "html.parser")
-        for item in infobox_soup.find_all('tr'):
-            #print item.get_text()
-            if item.th != None :
-                print item.th.string
-            for i in item.find_all('td'):
-                print i.get_text()
-                
-                    
+        path = os.path.abspath(".")
+        path += '/Data/'
+        with open('record.txt', "r+")as rc:
+            num = int(rc.read())
+        file_name = str(num)
+        file_name += '.html'
+        with open(path + file_name, "w")as f:
+            soup = BeautifulSoup(self.content, "html.parser")
+            info_list = str(soup.find_all('table', class_ = 'infobox biography vcard'))
+            self.count = self.count + 1
+            # Classify info:
+            #f.write('<h1>'+'Name:' + '</h1>')
+            infobox_soup = BeautifulSoup(info_list, "html.parser")
+            photo_num = 1 
+            for item in infobox_soup.find_all('tr'):
+                #print item.get_text()
+                image = item.find_all('a', class_ = 'image')
+                for i in image:
+                    #image_url = 'https:' 
+                    if i != None : 
+                        image_url = i.img['src']
+                        urllib.urlretrieve('https:' + image_url, path+'Photo/'+str(num)+'_'+str(photo_num)+'.jpg')
+                        photo_num = photo_num + 1
+                        f.write('Image Path:' + image_url + '\n')
+                if item.th != None :
+                    #print item.th.string
+                    f.write('#' + item.th.string + '\n')
+                    #classfied_info += item.th.string
+                for i in item.find_all('td'):
+                    tmp = i.get_text()
+                    if tmp.find(r'\n') != -1:
+                        tmp = tmp.replace(r'\n', r'|')
+                        tmp = tmp.replace(u'\xa0', u' ')
+                        k = 0
+                        while tmp[k] == '|':
+                            k = k + 1
+                        else :
+                            t = tmp[0:k].replace(r'|', r'')
+                            tt = tmp[-k:].replace(r'|', r'')
+                            tmp = t + tmp[k:-k] + tt
+                        f.write(tmp + '\n')
+                f.write('\n')
+                    #classfied_info = classfied_info + '    ' + i.get_text()
+        num = num + 1
+        tmp = str(num)
+        with open('record.txt', "w")as rc:
+            rc.write(tmp)
+
         #row_list = row_soup.find_all('th', scope = 'row')
         #block_list = infobox_soup.find_all('tr')
         #for block in block_list:
@@ -78,42 +115,16 @@ class WikiSpider:
                         #        block_info += noun
 
                         #print child
-            #print block_info
-
-
-        #row_list = str(re.findall('<th\s*scope\s*=\s*"row">([^<]*)', info_list))
-        #name = 'Name: '
-        #name += str(re.findall('<span\s*class\s*=\s*"fn">([^<]*)', info_list))
-        #name += '\n'
-        #classfied_info += name
-        #description = 'Descrption: '
-        #description += str(re.findall('<div>\s*([^<]*)', info_list))
-        #description += '\n'
-        #classfied_info += description
-        #birth_info = 'Birthday: '
-        #birth_info += str(re.findall('<span\s*class\s*=\s*"bday">([^<]*)', info_list))
-        #birth_info += '\nBirthPlace: '
-        #birth_info += str(re.findall('<span\s*class\s*=\s*"birthplace">[^>]*>*([^<]*)', info_list))
-        #classfied_info += birth_info
-        #print classfied_info 
-
-
-        #print info_list
-        #with open('record.txt', "r+")as f:
-        #    num = int(f.read())
-        #    print num 
-        #file_name = str(num)
-        #file_name += '.html'
-        #num = num + 1
-        #tmp = str(num)
-        #with open('record.txt', "w")as f:
-        #    f.write(tmp)
-        #with open(file_name, "w")as f:
-        #    f.write(str(info_list))
     def getNextURL(self):
         #soup = BeautifulSoup(content, "html.parser") 
         #url_list = soup.find_all('a', href = re.compile("(wiki/Category:){1}"))
         original_list = re.findall('<a\s*href\s*="(/wiki[^"]*)"', self.content) 
+        page_list = re.findall('<a\s*href\s*=\s*"(/w/index.php[^"]*)"[^>]*>next page</a>', self.content)
+        for url in page_list:
+            tmp = 'https://en.wikipedia.org' 
+            tmp += url
+            #print tmp
+            self.url_list.append(tmp)
         for url in original_list:
             tmp = 'https://en.wikipedia.org' 
             tmp += url
@@ -128,40 +139,25 @@ class WikiSpider:
             return False
     def furtherSearch(self):
         for url in self.url_list:
-            if self.count > 1:
+            if self.count > 20:
                 break
-            else :
+            elif url not in self.url_set:
                 self.openURL(url)
+                self.url_set.add(url)
                 if self.isInfoPage(url):  
-                    print 'Own info:', url
+                    print 'Got info, no.', self.count, ' ', url
                     self.getInfo()
                     self.url_list.remove(url)
                 else :
-                    print 'No info:', url
                     self.getNextURL()               
     
 spider = WikiSpider()
-#spider.addURL('https://en.wikipedia.org/wiki/Category:20th-century_American_engineers')
+spider.addURL('https://en.wikipedia.org/wiki/Category:21st-century_American_singers')
+spider.addURL('https://en.wikipedia.org/wiki/Category:21st-century_American_male_actors')
 spider.addURL('https://en.wikipedia.org/wiki/Category:21st-century_American_actresses')
+spider.addURL('https://en.wikipedia.org/wiki/Category:20th-century_American_businesspeople')
+spider.addURL('https://en.wikipedia.org/wiki/Category:African-American_basketball_players')
+
+
 spider.furtherSearch()
-
-#Match test
-#url = 'https://en.wikipedia.org/wiki/Alan_Turing' 
-#req = Request(url)
-#req.add_header('user-agent', 'fake-client')
-#response = urllib2.urlopen(req)
-#content = response.read()
-#pattern = re.compile('<table\s*class\s*=\s*"infobox biography vcard"\s*[^>]*')
-#pattern = re.compile('<a\s*href\s*="(/wiki[^"]*)"', re.M) 
-#match = pattern.search(content)
-#if match:
-#    print 'success'
-#else:
-#    print 'fail'
-
-
-#web_content = spider.openURL('https://en.wikipedia.org/wiki/Alan_Turing')
-#spider.getInfo(web_content)
-#url_list = spider.getNextURL(web_content)
-#for item in url_list:
-#    print item
+print os.path.abspath(".")
