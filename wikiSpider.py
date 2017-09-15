@@ -5,11 +5,24 @@ import time
 import re
 import sys
 import os
+import HTMLParser
 from urllib2 import Request, urlopen, URLError, HTTPError
 from bs4 import BeautifulSoup
 reload(sys)
 sys.setdefaultencoding("utf-8")
-#coding 
+from HTMLParser import HTMLParser
+ 
+class MyHTMLParser(HTMLParser):
+     def __init__(self):
+         HTMLParser.__init__(self)
+         self.link = ''
+     def handle_starttag(self, tag, attrs):
+         if tag == "a":
+             if len(attrs) == 0: pass
+             else:
+                 for (variable, value)  in attrs:
+                     if variable == "href":
+                         self.link = value
 
 class WikiSpider:
     def __init__(self):
@@ -17,7 +30,10 @@ class WikiSpider:
         self.__opener = urllib2.build_opener()
         self.__opener.addheaders = [self.__headers]
         self.count = 0
-        self.url_list = []
+        self.pageNumber = 0
+        self.infoURL_list = []
+        self.pageURL_list = []
+        self.parser = MyHTMLParser()
         self.url_set = set([])
         self.content = '' 
     def openURL(self, url):
@@ -26,11 +42,10 @@ class WikiSpider:
         #response = urllib2.urlopen(req)
         #content = response.read()
         self.content = self.__opener.open(url).read()
-        #encoding = chardet.detect(self.content)['encoding']
-        #self.content = self.content.decode(encoding, 'ignore')
-        #return content
+        encoding = chardet.detect(self.content)['encoding']
+        self.content = self.content.decode(encoding, 'ignore')
     def addURL(self, url):
-        self.url_list.append(url)
+        self.pageURL_list.append(url)
     def getInfo(self):
         path = os.path.abspath(".")
         path += '/Data/'
@@ -42,15 +57,12 @@ class WikiSpider:
             soup = BeautifulSoup(self.content, "html.parser")
             info_list = str(soup.find_all('table', class_ = 'infobox biography vcard'))
             self.count = self.count + 1
-            # Classify info:
-            #f.write('<h1>'+'Name:' + '</h1>')
             infobox_soup = BeautifulSoup(info_list, "html.parser")
             photo_num = 1 
             for item in infobox_soup.find_all('tr'):
                 #print item.get_text()
                 image = item.find_all('a', class_ = 'image')
                 for i in image:
-                    #image_url = 'https:' 
                     if i != None : 
                         image_url = i.img['src']
                         urllib.urlretrieve('https:' + image_url, path+'Photo/'+str(num)+'_'+str(photo_num)+'.jpg')
@@ -58,13 +70,14 @@ class WikiSpider:
                         f.write('Image Path:' + image_url + '\n')
                 if item.th != None :
                     #print item.th.string
-                    f.write('#' + item.th.string + '\n')
+                    if item.th.string != None :
+                        f.write('#' + item.th.string + '\n')
                     #classfied_info += item.th.string
                 for i in item.find_all('td'):
                     tmp = i.get_text()
                     if tmp.find(r'\n') != -1:
                         tmp = tmp.replace(r'\n', r'|')
-                        tmp = tmp.replace(u'\xa0', u' ')
+                        #tmp = tmp.replace(u'\xa0', u' ')
                         k = 0
                         while tmp[k] == '|':
                             k = k + 1
@@ -72,92 +85,88 @@ class WikiSpider:
                             t = tmp[0:k].replace(r'|', r'')
                             tt = tmp[-k:].replace(r'|', r'')
                             tmp = t + tmp[k:-k] + tt
-                        f.write(tmp + '\n')
+                    f.write(tmp + '\n')
                 f.write('\n')
-                    #classfied_info = classfied_info + '    ' + i.get_text()
         num = num + 1
         tmp = str(num)
         with open('record.txt', "w")as rc:
             rc.write(tmp)
 
-        #row_list = row_soup.find_all('th', scope = 'row')
-        #block_list = infobox_soup.find_all('tr')
-        #for block in block_list:
-        #    block_info = str(re.findall('<th\s*scope\s*=\s*"row">([^<]*)', str(block)))
-        #    block_info += ': '
-        #    block_soup = BeautifulSoup(str(block), "html.parser")
-        #    li_list = block_soup.find_all('li')
-        #    if li_list:
-        #        pass
-        #        #print li_list
-        #    else :
-        #        td_list = block_soup.find_all('td')
-        #        for td in td_list:
-        #            td_soup = BeautifulSoup(str(td), "html.parser")
-        #            for paragraph in td_soup.children:
-        #                #print paragraph
-        #                #noun_list = re.findall('<a\s*href\s*=\s*[^>]*([^<]*)|<span\s*class\s*=\s*[^>]*([^<]*)', str(paragraph))
-        #                noun_list = re.findall('<a\s*href\s*=\s*[^>]*>([^<]*)|<span\s*class\s*=\s*[^>]*>([^<]*)|/a>"([^"]*)"', str(paragraph))
-        #                for noun in noun_list:
-        #                    print noun
-                        #para_soup = BeautifulSoup(str(paragraph), "html.parser") 
-                        #paraURL_list = para_soup.find_all('a')
-                        #if len(paraURL_list): #some links in this para
-                        #    noun_list = re.findall('<a\s*href\s*=\s*[^>]*([^<]*)', str(paragraph))
-                        #    #print noun_list
-                        #    for noun in noun_list:
-                        #        block_info += noun
-                        #    #print paraURL_list
-                        #else :
-                        #    noun_list = re.findall('<span\s*class\s*=\s*"[^<]*>([^<]*)', str(paragraph))
-                        #    for noun in noun_list:
-                        #        print 'noparaURL'
-                        #        block_info += noun
-
-                        #print child
+    def urlAvailable(self, url):
+        key_list = re.findall('https://en.wikipedia.org/wiki/([^:]*):', url) 
+        for key in key_list:
+            if key == 'Wikipedia':
+                return False
+            elif key == 'Help':
+                return False
+            elif key == 'Category':
+                return False
+            elif key == 'Template':
+                return False
+            elif key == 'User':
+                return False
+            elif key == 'Special':
+                return False
+            elif key == 'Talk':
+                return False
+            elif key == 'Portal':
+                return False
+            elif key == 'Category_talk':
+                return False
+        if url == 'https://en.wikipedia.org/wiki/Main_Page': 
+            return False
+        return True
     def getNextURL(self):
-        #soup = BeautifulSoup(content, "html.parser") 
-        #url_list = soup.find_all('a', href = re.compile("(wiki/Category:){1}"))
-        original_list = re.findall('<a\s*href\s*="(/wiki[^"]*)"', self.content) 
-        page_list = re.findall('<a\s*href\s*=\s*"(/w/index.php[^"]*)"[^>]*>next page</a>', self.content)
-        for url in page_list:
+        page_list = re.findall('(<a\s*href\s*=\s*"/w/index.php[^"]*"[^>]*>next page</a>)', self.content)
+        print page_list
+        k = 0
+        while page_list:
+            original_list = re.findall('<a\s*href\s*="(/wiki[^"]*)"', self.content) 
+            for url in original_list:
+                tmp = 'https://en.wikipedia.org' 
+                tmp += url
+                if self.urlAvailable(tmp) and tmp not in self.url_set:
+                    self.infoURL_list.append(tmp)
+                    self.pageNumber = self.pageNumber + 1
+                    self.url_set.add(tmp)
+                    print 'no. ', self.pageNumber, tmp
             tmp = 'https://en.wikipedia.org' 
-            tmp += url
-            #print tmp
-            self.url_list.append(tmp)
-        for url in original_list:
-            tmp = 'https://en.wikipedia.org' 
-            tmp += url
-            #print tmp
-            self.url_list.append(tmp)
-    def isInfoPage(self, url):
+            self.parser.feed(page_list[0])
+            tmp += self.parser.link
+            self.openURL(tmp)
+            k = k + 1
+            print 'page', k, tmp
+            page_list = re.findall('(<a\s*href\s*=\s*"/w/index.php[^"]*"\s*title\s*=\s*"[^"]*">next page</a>)', self.content)
+    def isInfoPage(self):
         pattern = re.compile('<table\s*class\s*=\s*"infobox biography vcard"\s*[^>]*')
         match = pattern.search(self.content)
         if match:
             return True
         else:
             return False
-    def furtherSearch(self):
-        for url in self.url_list:
-            if self.count > 20:
+    def startSearch(self):    
+        for pageURL in self.pageURL_list:
+            self.openURL(pageURL)
+            self.getNextURL()
+            if self.pageNumber > 14000:
                 break
-            elif url not in self.url_set:
+        for url in self.infoURL_list:
+            if self.count > 10500:
+                break
+            else :
                 self.openURL(url)
-                self.url_set.add(url)
-                if self.isInfoPage(url):  
+                if self.isInfoPage():  
                     print 'Got info, no.', self.count, ' ', url
                     self.getInfo()
-                    self.url_list.remove(url)
+                    self.infoURL_list.remove(url)
                 else :
-                    self.getNextURL()               
+                    print 'No info', url
     
 spider = WikiSpider()
-spider.addURL('https://en.wikipedia.org/wiki/Category:21st-century_American_singers')
-spider.addURL('https://en.wikipedia.org/wiki/Category:21st-century_American_male_actors')
 spider.addURL('https://en.wikipedia.org/wiki/Category:21st-century_American_actresses')
+spider.addURL('https://en.wikipedia.org/wiki/Category:21st-century_American_male_actors')
+spider.addURL('https://en.wikipedia.org/wiki/Category:21st-century_American_singers')
 spider.addURL('https://en.wikipedia.org/wiki/Category:20th-century_American_businesspeople')
 spider.addURL('https://en.wikipedia.org/wiki/Category:African-American_basketball_players')
-
-
-spider.furtherSearch()
-print os.path.abspath(".")
+spider.startSearch()
+print 'work done!!!!'
