@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>post test</title>
+	<style type="text/css">
+		table { table-layout:fixed; word-break: break-all; word-wrap: break-word;  }
+		table.imagetable {
+			font-family: verdana,arial,sans-serif;
+			font-size:11px;
+			color:#333333;
+			border-width: 1px;
+			border-color: #999999;
+			border-collapse: collapse;
+		}
+		table.imagetable th {
+			background:#b5cfd2 url('blue.jpg');
+			border-width: 1px;
+			padding: 8px;
+			border-style: solid;
+			border-color: #999999;
+		}
+		table.imagetable td {
+			background:#dcddc0 url('grey.jpg');
+			border-width: 1px;
+			padding: 8px;
+			border-style: solid;
+			border-color: #999999;
+		}
+	</style>
+</head>
+<body>
+	<form action="/search-post" method="post">
+		{% csrf_token %}
+		<h2>Keyword Input:</h2>
+		<input type="text" name="q">
+		<input type="submit" value="Submit">
+	</form>
+	<p>
+		{%if ItemList %}
+			{% for item in ItemList %}
+				{%if item.name and item.number%}
+				</br><a href = '/info/{{item.number}}/'>{{item.name}}</a>
+				{% endif %}
+			{% endfor%}
+		{%elif DataList %}
+			<table class = "imagetable">
+			{% for item in DataList%}
+			<tr>
+				<th>{{item.title}}</th>
+				<td >
+					{% for i in item.descrption%}
+					<br>{{i}}</br>
+					{%endfor%}
+				</td>
+			</tr>
+			{%if item.image%}
+			<tr>
+				<td colspan = "2" align = "center">
+					<img src ="{{item.image}}"/>
+					<br>{{item.imagedescrption}}</br>
+				</td>
+			</tr>
+			{%endif%}
+			{% endfor %}
+			</table>
+		{% else %}
+		<h3> Not found</h3>
+		{% endif %}
+	</p>
+</body>
+</html>
